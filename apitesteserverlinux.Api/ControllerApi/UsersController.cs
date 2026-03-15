@@ -14,10 +14,20 @@ namespace apitesteserverlinux.Api.ControllerApi;
 public class UsersController : ControllerBase
 {
     private readonly IUserRepository _repository;
+    private readonly ITenantRepository _tenantRepository;
+    private readonly ITenantMemberRepository _tenantMemberRepository;
+    private readonly JwtTokenService _jwtTokenService;
 
-    public UsersController(IUserRepository repository)
+    public UsersController(
+        IUserRepository repository,
+        ITenantRepository tenantRepository,
+        ITenantMemberRepository tenantMemberRepository,
+        JwtTokenService jwtTokenService)
     {
         _repository = repository;
+        _tenantRepository = tenantRepository;
+        _tenantMemberRepository = tenantMemberRepository;
+        _jwtTokenService = jwtTokenService;
     }
     //inicio
 
@@ -28,13 +38,6 @@ public class UsersController : ControllerBase
     {
         try
         {
-            // Cadastro inicial: só pode acontecer uma vez (dono do SaaS)
-            if (await _repository.AnyAsync())
-                return Conflict(ApiResponse<string>.Fail(
-                    "Cadastro inicial já realizado. Faça login para continuar.",
-                    new[] { "U1C3" }
-                ));
-
             if (await _repository.GetByEmailAsync(model.Email) is not null)
                 return BadRequest(ApiResponse<string>.Fail(
                     "E-mail já cadastrado.",
@@ -57,22 +60,45 @@ public class UsersController : ControllerBase
                 email: model.Email,
                 passwordHash: passwordHash,
                 phoneNumber: model.PhoneNumber,
-                role: UserRole.Admin // ✅ dono do SaaS
+                role: UserRole.Admin
             );
 
             await _repository.AddAsync(admin);
 
-            return Ok(ApiResponse<UserResponse>.Ok(new UserResponse
+            var tenant = new Tenant($"{admin.Name} - SaaS", admin.Id);
+            await _tenantRepository.AddAsync(tenant);
+
+            var tenantMember = new TenantMember(tenant.Id, admin.Id, TenantRole.Owner);
+            await _tenantMemberRepository.AddAsync(tenantMember);
+
+            var token = _jwtTokenService.CreateToken(
+                userId: admin.Id,
+                email: admin.Email,
+                role: admin.Role.ToString(),
+                tenantId: tenant.Id,
+                tenantRole: tenantMember.Role.ToString(),
+                workspaceId: null
+            );
+
+            return Ok(ApiResponse<object>.Ok(new
             {
-                Id = admin.Id,
-                Name = admin.Name,
-                Email = admin.Email,
-                IsActive = admin.IsActive
-            }, "Conta criada com sucesso. Você é o administrador."));
+                user = new UserResponse
+                {
+                    Id = admin.Id,
+                    Name = admin.Name,
+                    Email = admin.Email,
+                    IsActive = admin.IsActive
+                },
+                tenant = new
+                {
+                    Id = tenant.Id,
+                    Name = tenant.Name
+                },
+                token
+            }, "Conta criada com sucesso. Você é o administrador do seu SaaS."));
         }
         catch (ArgumentException ex)
         {
-            // Ex.: telefone inválido (NormalizePhone)
             return BadRequest(ApiResponse<string>.Fail(ex.Message));
         }
         catch (Exception)
@@ -86,7 +112,6 @@ public class UsersController : ControllerBase
             );
         }
     }
-
 
     // GET api/v1/users/{id}
     [HttpGet("{id:guid}")]
@@ -124,6 +149,7 @@ public class UsersController : ControllerBase
 
     // GET api/v1/users
     [HttpGet]
+    [Authorize]
     public async Task<IActionResult> GetAll()
     {
         try

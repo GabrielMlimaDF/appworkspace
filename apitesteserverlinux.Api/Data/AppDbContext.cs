@@ -12,7 +12,8 @@ public class AppDbContext : DbContext
 
     public DbSet<User> Users => Set<User>();
     public DbSet<Workspace> Workspaces => Set<Workspace>();
-
+    public DbSet<Tenant> Tenants => Set<Tenant>();
+    public DbSet<TenantMember> TenantMembers => Set<TenantMember>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
