@@ -20,6 +20,14 @@ public class TenantMemberRepository : ITenantMemberRepository
         await _context.SaveChangesAsync();
     }
 
+    public async Task<IEnumerable<TenantMember>> GetByTenantIdAsync(Guid tenantId)
+    {
+        return await _context.TenantMembers
+            .AsNoTracking()
+            .Where(x => x.TenantId == tenantId)
+            .OrderBy(x => x.JoinedAt)
+            .ToListAsync();
+    }
     public async Task<TenantMember?> GetByUserIdAsync(Guid userId)
     {
         return await _context.TenantMembers

@@ -20,6 +20,7 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IWorkspaceRepository, WorkspaceRepository>();
 builder.Services.AddScoped<ITenantRepository, TenantRepository>();
 builder.Services.AddScoped<ITenantMemberRepository, TenantMemberRepository>();
+builder.Services.AddScoped<IWorkspaceMemberRepository, WorkspaceMemberRepository>();
 
 builder.Services.AddControllers();
 
